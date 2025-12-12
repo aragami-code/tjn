@@ -1,56 +1,75 @@
-// Jenkinsfile (Pipeline Scripted)
-
 pipeline {
     agent any
-
+    
+    // Variables d'environnement pour les services Docker Compose
     environment {
-        // Chemin cible dans le volume partagé (qui est le même pour NGINX)
-        // Ce chemin correspond à ./website_files sur la VM, monté en /var/website_output
-        NGINX_DEPLOY_PATH = '/var/website_output'
-        // Le nom de l'identifiant de credential SSH ou Username/Password dans Jenkins
-        # GITHUB_CREDENTIALS = 'votre-credential-id' // Décommenter si le dépôt est privé
-        GIT_REPO_URL = 'https://github.com/[votre-utilisateur]/[votre-depot].git'
+        // Le nom de l'utilisateur root MySQL est 'root'
+        DB_ROOT_PASSWORD = 'root_password'
+        
+        // Nom de la base de données pour l'application
+        DB_DATABASE = 'web_database' 
+        
+        // Nom du service MySQL tel que défini dans docker-compose.yml
+        DB_HOST = 'mysql' 
+        
+        // Optionnel : Laissez commenté si le dépôt est public
+        // GITHUB_CREDENTIALS = 'votre-credential-id' 
     }
 
     stages {
-        stage('Nettoyage Ancien Code') {
+        stage('Nettoyage et Préparation') {
             steps {
-                echo 'Nettoyage du répertoire de déploiement NGINX...'
-                // Exécute la commande de nettoyage directement sur le volume cible
-                // Note : Nous utilisons 'sh' car Jenkins s'exécute sur l'agent (le conteneur)
-                sh "sudo rm -rf ${NGINX_DEPLOY_PATH}/*"
+                echo "Nettoyage des fichiers précédents et préparation du workspace."
+                
+                // Supprime le répertoire website_files synchronisé avant le clonage
+                sh 'sudo rm -rf /vagrant/deploiement/website_files'
+                sh 'mkdir /vagrant/deploiement/website_files'
             }
         }
         
-        stage('Clonage Code GitHub') {
+        stage('Clonage du Code') {
             steps {
-                echo "Clonage du code depuis ${GIT_REPO_URL}"
-                // Récupère la dernière version du code du dépôt
-                git url: env.GIT_REPO_URL, branch: 'main'
+                echo "Clonage du code source depuis GitHub."
                 
-                // Si votre dépôt est privé, utilisez :
-                // git url: env.GIT_REPO_URL, branch: 'main', credentialsId: env.GITHUB_CREDENTIALS
+                // Le code est cloné dans le répertoire workspace de Jenkins
+                git branch: 'main', url: 'https://github.com/aragami-code/tjn.git'
             }
         }
-
-        stage('Copie vers NGINX') {
+        
+        stage('Test (Simulation)') {
             steps {
-                echo 'Copie des fichiers (index.php, etc.) vers le dossier NGINX partagé...'
-                // Le dossier courant (workspace) contient le code cloné.
-                // Nous copions tout vers le volume monté.
-                // Le "sudo" est souvent nécessaire pour écrire sur un volume bind mount depuis Jenkins (qui tourne en user 'jenkins' ou 'root' selon la configuration).
-                sh "sudo cp -R ./* ${NGINX_DEPLOY_PATH}/"
-                echo "Déploiement terminé. Site mis à jour sur http://192.168.56.10:8080"
+                echo "Exécution des tests unitaires ou d'un simple contrôle de syntaxe..."
+                // Vous pouvez ajouter ici des commandes de test PHP (PHPUnit, linting, etc.)
+                sh 'php -l index.php' // Vérifie la syntaxe de index.php si PHP est installé dans l'agent Jenkins
             }
         }
-    }
-    
-    post {
-        success {
-            echo 'Pipeline terminé avec succès.'
+        
+        stage('Déploiement du Code') {
+            steps {
+                echo "Copie du code vers le volume partagé (website_files)."
+                
+                // Copie le contenu du répertoire de travail de Jenkins vers le volume synchronisé de Docker Compose
+                // NOTE : Utiliser **/** pour s'assurer que même les fichiers cachés sont copiés.
+                sh 'sudo cp -R * /vagrant/deploiement/website_files/'
+            }
         }
-        failure {
-            echo 'Le déploiement a échoué. Vérifiez les logs de clonage et de copie.'
+        
+        stage('Redémarrage des Services Docker') {
+            steps {
+                echo "Redémarrage de l'architecture Docker pour rafraîchir le code."
+                
+                // Relance seulement les services (nginx et php-fpm) qui utilisent le volume
+                sh 'sudo docker compose -f /vagrant/deploiement/docker-compose.yml restart php-fpm nginx_web'
+                
+                // Affiche l'état des services pour confirmation
+                sh 'sudo docker compose -f /vagrant/deploiement/docker-compose.yml ps'
+            }
+        }
+        
+        stage('Vérification du Déploiement') {
+            steps {
+                echo "Le déploiement est terminé. Le site devrait être disponible à http://192.168.56.10:8080"
+            }
         }
     }
 }
