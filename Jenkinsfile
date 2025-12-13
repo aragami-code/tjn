@@ -9,10 +9,10 @@ pipeline {
         DB_HOST = 'mysql' 
         
         // Configuration du chemin vers Docker Compose (depuis la VM)
-        DOCKER_COMPOSE_PATH = '/vagrant/deploiement/docker-compose.yml'
+        DOCKER_COMPOSE_PATH = '/vagrant/deployment/docker-compose.yml'
         
         // Chemin du volume partagé sur la VM (où NGINX et PHP lisent)
-        VOLUME_PATH = '/vagrant/deploiement/website_files'
+        VOLUME_PATH = '/vagrant/deployment/website_files'
     }
 
     stages {
