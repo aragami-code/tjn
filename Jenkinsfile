@@ -3,72 +3,71 @@ pipeline {
     
     // Variables d'environnement pour les services Docker Compose
     environment {
-        // Le nom de l'utilisateur root MySQL est 'root'
+        // Variables pour la connexion à MySQL, utilisées dans votre code PHP
         DB_ROOT_PASSWORD = 'root_password'
-        
-        // Nom de la base de données pour l'application
         DB_DATABASE = 'web_database' 
-        
-        // Nom du service MySQL tel que défini dans docker-compose.yml
         DB_HOST = 'mysql' 
         
-        // Optionnel : Laissez commenté si le dépôt est public
-        // GITHUB_CREDENTIALS = 'votre-credential-id' 
+        // Configuration du chemin vers Docker Compose (depuis la VM)
+        DOCKER_COMPOSE_PATH = '/vagrant/deploiement/docker-compose.yml'
+        
+        // Chemin du volume partagé sur la VM (où NGINX et PHP lisent)
+        VOLUME_PATH = '/vagrant/deploiement/website_files'
     }
 
     stages {
         stage('Nettoyage et Préparation') {
             steps {
-                echo "Nettoyage des fichiers précédents et préparation du workspace."
+                echo "Nettoyage des fichiers précédents et préparation du volume partagé."
                 
-                // Supprime le répertoire website_files synchronisé avant le clonage
-                sh 'sudo rm -rf /vagrant/deploiement/website_files'
-                sh 'mkdir /vagrant/deploiement/website_files'
+                // Correction: Suppression de 'sudo'
+                sh "rm -rf ${VOLUME_PATH}"
+                sh "mkdir ${VOLUME_PATH}"
             }
         }
         
         stage('Clonage du Code') {
             steps {
                 echo "Clonage du code source depuis GitHub."
-                
-                // Le code est cloné dans le répertoire workspace de Jenkins
+                // Clonage dans le workspace de Jenkins
                 git branch: 'main', url: 'https://github.com/aragami-code/tjn.git'
             }
         }
         
         stage('Test (Simulation)') {
             steps {
-                echo "Exécution des tests unitaires ou d'un simple contrôle de syntaxe..."
-                // Vous pouvez ajouter ici des commandes de test PHP (PHPUnit, linting, etc.)
-                sh 'php -l index.php' // Vérifie la syntaxe de index.php si PHP est installé dans l'agent Jenkins
+                echo "Exécution des tests de base."
+                // Vérifie la syntaxe de index.php (si PHP est accessible dans le conteneur Jenkins, ce qui n'est pas garanti)
+                // Optionnel : sh 'php -l index.php' 
             }
         }
         
         stage('Déploiement du Code') {
             steps {
-                echo "Copie du code vers le volume partagé (website_files)."
+                echo "Copie du code du workspace vers le volume partagé."
                 
-                // Copie le contenu du répertoire de travail de Jenkins vers le volume synchronisé de Docker Compose
-                // NOTE : Utiliser **/** pour s'assurer que même les fichiers cachés sont copiés.
-                sh 'sudo cp -R * /vagrant/deploiement/website_files/'
+                // Correction: Suppression de 'sudo'
+                // Copie le contenu du workspace de Jenkins vers le volume synchronisé
+                sh "cp -R * ${VOLUME_PATH}/"
             }
         }
         
         stage('Redémarrage des Services Docker') {
             steps {
-                echo "Redémarrage de l'architecture Docker pour rafraîchir le code."
+                echo "Redémarrage des services PHP et NGINX pour charger le nouveau code."
                 
-                // Relance seulement les services (nginx et php-fpm) qui utilisent le volume
-                sh 'sudo docker compose -f /vagrant/deploiement/docker-compose.yml restart php-fpm nginx_web'
+                // Correction: Suppression de 'sudo'
+                // Redémarre les services NGINX et PHP-FPM uniquement
+                sh "docker compose -f ${DOCKER_COMPOSE_PATH} restart php-fpm nginx_web"
                 
-                // Affiche l'état des services pour confirmation
-                sh 'sudo docker compose -f /vagrant/deploiement/docker-compose.yml ps'
+                echo "Affichage de l'état des services Docker pour vérification."
+                sh "docker compose -f ${DOCKER_COMPOSE_PATH} ps"
             }
         }
         
-        stage('Vérification du Déploiement') {
+        stage('Vérification Finale') {
             steps {
-                echo "Le déploiement est terminé. Le site devrait être disponible à http://192.168.56.10:8080"
+                echo "Déploiement terminé. Le site devrait être disponible à http://192.168.56.10:8080"
             }
         }
     }
