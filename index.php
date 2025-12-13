@@ -58,7 +58,7 @@ try {
     
     <p style="color: green; font-weight: bold;"><?php echo $message; ?></p>
     
-    <h2>Insertion de Données (Jenkins Goal)</h2>
+    <h2>Insertion de Données (Jenkins Goal) aragami</h2>
     <form method="POST">
         <label for="nom">Nom :</label><br>
         <input type="text" id="nom" name="nom" required><br><br>
