@@ -20,10 +20,10 @@ pipeline {
             steps {
                 echo "Nettoyage des fichiers précédents et préparation du volume partagé."
                 
-                // Correction: Suppression de 'sudo'
-                sh "rm -rf ${VOLUME_PATH}"
-                sh "mkdir ${VOLUME_PATH}"
+                // Utiliser 'mkdir -p' (crée les parents si besoin) et chaîner la commande après la suppression
+                sh "rm -rf ${VOLUME_PATH} && mkdir -p ${VOLUME_PATH}"
             }
+          }
         }
         
         stage('Clonage du Code') {
